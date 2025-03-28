@@ -1,0 +1,575 @@
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local player = game.Players.LocalPlayer
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+plr = game.Players.LocalPlayer
+cam = workspace.CurrentCamera
+mouse = plr:GetMouse()
+uis = game:GetService("UserInputService")
+inv = workspace:WaitForChild(plr.Name.."SpawnedInToys")
+rs = game:GetService("ReplicatedStorage")
+rs2 = game:GetService("RunService")
+deb = game:GetService("Debris")
+
+-- Rayfield UI 불러오기
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- 기본 상태
+getgenv().OnOff = false
+
+-- Ragdoll 상태 변경 함수
+local function setRagdoll(state, callback)
+    print("Ragdoll 상태 변경: " .. (state and "활성화" or "비활성화"))
+    game.ReplicatedStorage.CharacterEvents.RagdollRemote:FireServer(
+        game.Players.LocalPlayer.Character.HumanoidRootPart,
+        state and 0.2 or 0
+    )
+    
+    wait(1)
+    
+    if callback then
+        callback()
+    end
+end
+
+-- 팔다리를 아래로 이동시키는 함수
+local function moveLimbs(callback)
+    print("팔다리 이동 시작")
+    local character = player.Character or player.CharacterAdded:Wait()
+    local movedCount = 0
+    local totalLimbs = 4
+
+    for _, limbName in ipairs({"Left Arm", "Right Arm", "Left Leg", "Right Leg"}) do
+        local limb = character:FindFirstChild(limbName)
+        if limb and limb:IsA("BasePart") then
+            local goalPosition = limb.Position + Vector3.new(0, -300, 0)
+            local speed = 200
+
+            local renderConnection
+            renderConnection = RunService.RenderStepped:Connect(function(dt)
+                if limb and limb.Parent then
+                    limb.Position = limb.Position:Lerp(goalPosition, dt * speed)
+                end
+                if (limb.Position - goalPosition).Magnitude < 1 then
+                    renderConnection:Disconnect()
+                    movedCount = movedCount + 1
+                    if movedCount == totalLimbs then
+                        print("모든 팔다리 이동 완료")
+                        if callback then
+                            callback()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- 왼쪽 팔 위치로 순간이동하는 함수
+local function teleportToLeftArm(callback)
+    print("왼쪽 팔로 순간이동 시작")
+    local character = player.Character or player.CharacterAdded:Wait()
+    local leftArm = character:FindFirstChild("Left Arm")
+
+    if leftArm then
+        wait(0.1)
+        character:SetPrimaryPartCFrame(leftArm.CFrame)
+        print("왼쪽 팔로 순간이동 완료")
+        if callback then
+            callback()
+        end
+    end
+end
+
+
+
+
+
+
+--다른플레이어 팔다리이동
+
+-- 네트워크 오너 변경 함수
+local function changeNetworkOwner(targetPlayer)
+    if targetPlayer and targetPlayer.Character then
+        local humanoidRootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(humanoidRootPart)
+            print("네트워크 오너 변경 완료: " .. targetPlayer.Name)
+        end
+    end
+end
+
+-- 플레이어 찾기 함수 (마우스가 보고 있는 대상)
+local function getTargetPlayer()
+    local mouse = player:GetMouse()
+    local target = mouse.Target
+    if target and target.Parent then
+        return Players:GetPlayerFromCharacter(target.Parent)
+    end
+    return nil
+end
+
+-- Ragdoll 상태 변경 함수
+local function toggleRagdoll(targetPlayer, state, callback)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        ReplicatedStorage.CharacterEvents.RagdollRemote:FireServer(
+            targetPlayer.Character.HumanoidRootPart,
+            state and 0.2 or 0
+        )
+        wait(1)
+        if callback then callback() end
+    end
+end
+
+-- 팔다리 이동 함수
+local function shiftLimbs(targetPlayer, callback)
+    if not targetPlayer or not targetPlayer.Character then return end
+    
+    local character = targetPlayer.Character
+    local movedCount = 0
+    local totalLimbs = 4
+    for _, limbName in ipairs({"Left Arm", "Right Arm", "Left Leg", "Right Leg"}) do
+        local limb = character:FindFirstChild(limbName)
+        if limb and limb:IsA("BasePart") then
+            local goalPosition = limb.Position + Vector3.new(0, -300, 0)
+            local speed = 200
+            
+            local renderConnection
+            renderConnection = RunService.RenderStepped:Connect(function(dt)
+                if limb and limb.Parent then
+                    limb.Position = limb.Position:Lerp(goalPosition, dt * speed)
+                end
+                if (limb.Position - goalPosition).Magnitude < 1 then
+                    renderConnection:Disconnect()
+                    movedCount = movedCount + 1
+                    if movedCount == totalLimbs and callback then
+                        callback()
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- 왼쪽 팔 위치로 플레이어 이동 함수
+local function moveToLeftArm(targetPlayer, callback)
+    if not targetPlayer or not targetPlayer.Character then return end
+    
+    local character = targetPlayer.Character
+    local leftArm = character:FindFirstChild("Left Arm")
+    if leftArm then
+        wait(0.1)
+        character:SetPrimaryPartCFrame(leftArm.CFrame)
+        print(targetPlayer.Name .. "의 왼쪽 팔로 이동 완료")
+        if callback then callback() end
+    end
+end
+
+-- Ragdoll을 계속 유지하는 함수
+local function maintainRagdoll()
+    while getgenv().OnOff do
+        game.ReplicatedStorage.CharacterEvents.RagdollRemote:FireServer(game.Players.LocalPlayer.Character.HumanoidRootPart, 0.2)
+        wait()
+    end
+end
+
+--GENERALFUNCS--
+function updateCurrentBlobmanF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    for _, blobs in workspace:GetDescendants() do
+        if blobs.Name ~= "CreatureBlobman" then continue end
+        if not blobs:FindFirstChild("VehicleSeat") then continue end
+        if not blobs.VehicleSeat:FindFirstChild("SeatWeld") then continue end
+        if blobs.VehicleSeat.SeatWeld.Part1 == hrp then
+            currentBlobS = blobs
+        end
+    end
+end
+
+function blobGrabF(blob, target, side)
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local args = {
+        [1] = blob:FindFirstChild(side.."Detector"),
+        [2] = target,
+        [3] = blob:FindFirstChild(side.."Detector"):FindFirstChild(side.."Weld"),
+        }
+        blob.BlobmanSeatAndOwnerScript.CreatureGrab:FireServer(unpack(args))
+end
+
+function blobDropF(blob, target, side)
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local args = {
+        [1] = blob:FindFirstChild(side.."Detector"):FindFirstChild(side.."Weld"),
+        [2] = target,
+        }
+        blob.BlobmanSeatAndOwnerScript.CreatureDrop:FireServer(unpack(args))
+end
+
+function silentBlobGrabF(blob, target, side)
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local args = {
+        [1] = blob:FindFirstChild(side.."Detector"),
+        [2] = target,
+        [3] = blob:FindFirstChild(side.."Detector").AttachPlayer,
+        }
+        blob.BlobmanSeatAndOwnerScript.CreatureGrab:FireServer(unpack(args))
+end
+
+function updateCurrentHouseF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if char.Parent == workspace then
+        currentHouseS = 0
+    elseif char.Parent.Name == "PlayersInPlots" then
+        for i, e in workspace.Plots:GetChildren() do
+            for i, e in e.PlotSign.ThisPlotsOwners:GetChildren() do
+                if e.Value == plr.Name then
+                    if e.Parent.Parent.Parent.Name == "Plot1" then
+						currentHouseS = 1
+					elseif e.Parent.Parent.Parent.Name == "Plot2" then
+						currentHouseS = 2
+					elseif e.Parent.Parent.Parent.Name == "Plot3" then
+						currentHouseS = 3
+					elseif e.Parent.Parent.Parent.Name == "Plot4" then
+						currentHouseS = 4
+					elseif e.Parent.Parent.Parent.Name == "Plot5" then
+						currentHouseS = 5
+					end
+                end
+            end
+        end
+	end
+end
+
+function mouseTargetInspectF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if mouse.Target then
+        if mouse.Target.Parent:FindFirstChildOfClass("Humanoid") then
+            currentInspectS = 1
+            currentHouseInspectS = 0
+        elseif mouse.Target.Parent:IsDescendantOf(workspace.Plots) then
+                local current = mouse.Target
+                repeat
+                   current = current.Parent
+                until string.match(current.Name, "Plot")
+                for i = 1, 5 do
+                    if current.Name == "Plot"..i then
+                        currentHouseInspectS = i
+                    end
+                end
+                currentInspectS = 2
+        elseif mouse.Target.Parent:IsDescendantOf(workspace.PlotItems) or string.match(mouse.Target.Parent.Parent.Name, "SpawnedInToys") or mouse.Target.Parent.Parent:FindFirstChild("SpawningPlatform") then
+            currentInspectS = 3
+            currentHouseInspectS = 0
+        else
+            currentInspectS = 4
+            currentHouseInspectS = 0
+        end
+    end
+end
+
+--KEYBINDFUNCS--
+function ragdollSpamF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    while ragdollSpamT and not ragdollSpamD and not permRagdollT do
+        ragdollSpamD = true
+            local args = {
+                [1] = hrp,
+                [2] = 0
+            }
+            rs:WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(unpack(args))
+        task.wait(0.02)
+        ragdollSpamD = false
+    end
+end
+
+function setRagdollF(state)
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        rs:WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(hrp, state and 1 or 0)
+        if hum then hum.PlatformStand = state end
+    end
+end
+
+function permRagdollLoopF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if permRagdollRunningS then return end
+    permRagdollRunningS = true
+    while permRagdollT do
+        setRagdollF(true)
+        task.wait(0.5)
+    end
+    permRagdollRunningS = false
+    setRagdollF(false)
+end
+
+function getBlobmanF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    updateCurrentHouseF()
+    if currentHouseS == 0 then
+        if inv then return inv:FindFirstChild("CreatureBlobman") end
+        return nil
+    else
+        return workspace.PlotItems:FindFirstChild("Plot"..currentHouseS):FindFirstChild("CreatureBlobman")
+    end
+end
+
+function spawnBlobmanF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local spawnRemote = rs:WaitForChild("MenuToys"):WaitForChild("SpawnToyRemoteFunction")
+    if spawnRemote then
+        pcall(function()spawnRemote:InvokeServer("CreatureBlobman", hrp.CFrame*CFrame.new(0,0,-5),Vector3.new(0, -15.716, 0))end)
+        task.wait(1)
+        blobmanInstanceS = getBlobmanF()
+    end
+end
+
+function destroyBlobmanF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if blobmanInstanceS and destroyAutoGucciT then
+        if currentHouseS == 0 then
+            local args = {[1] = blobmanInstanceS}
+            local destroyRemote = rs:FindFirstChild("MenuToys") and rs.MenuToys:FindFirstChild("DestroyToy")
+            if destroyRemote then pcall(function()destroyRemote:FireServer(unpack(args))end)end
+            blobmanInstanceS = nil
+        else
+            blobmanInstanceS.HumanoidRootPart.CFrame = workspace.Plots:FindFirstChild("Plot"..currentHouseS).TeslaCoil.ZapPart.CFrame
+            blobmanInstanceS = nil
+        end
+    end
+end
+
+function ragdollLoopF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if ragdollLoopD then return end
+    ragdollLoopD = true
+    while sitJumpT do
+        if char and hrp then
+            local args={[1] = hrp, [2] = 0}
+            rs:WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(unpack(args))
+        end
+        task.wait()
+    end
+    ragdollLoopD = false
+end
+
+function sitJumpF()
+    local char = plr.Character
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    if not char or not hum then return end
+    local startTime = tick()
+    while autoGucciT and tick()-startTime<6 do
+        if blobmanInstanceS then
+            local seat = blobmanInstanceS:FindFirstChildWhichIsA("VehicleSeat")
+            if seat and seat.Occupant ~= hum then seat:Sit(hum) end
+        end
+        task.wait(0.1)
+        if char and hum then hum:ChangeState(Enum.HumanoidStateType.Jumping)end
+        task.wait(0.1)
+    end
+    if blobmanInstanceS then destroyBlobmanF() end
+    autoGucciT = false
+    sitJumpT = false
+end
+
+--TOYFUNCS--
+function addToysF()
+end
+
+
+
+--lune--
+
+local rainbowEnabled = false
+local selectionBoxes = {}
+
+-- SelectionBox 생성 함수
+local function createRainbowSelection(part)
+    if not part then return end
+
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.Parent = part
+    selectionBox.Adornee = part
+    selectionBox.LineThickness = 0.015
+    selectionBox.SurfaceColor3 = Color3.new(1, 1, 1)
+    selectionBox.SurfaceTransparency = 1
+    selectionBox.Color3 = Color3.fromRGB(255, 0, 0)  -- 초기 색상
+
+    return selectionBox
+end
+
+-- 캐릭터에 레인보우 효과를 적용하는 함수
+local function applyRainbowEffectToCharacter(character)
+    local parts = {"Left Arm", "Right Arm", "Left Leg", "Right Leg"}  -- 원하는 부위 이름을 추가
+    local selections = {}
+
+    for _, partName in ipairs(parts) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            local selection = createRainbowSelection(part)
+            table.insert(selections, selection)
+        end
+    end
+
+    local hue = 0
+    RunService.RenderStepped:Connect(function(deltaTime)
+        if rainbowEnabled then
+            hue = (hue + deltaTime * 0.5) % 1  -- 부드러운 색상 변화
+            local rainbowColor = Color3.fromHSV(hue, 1, 1)
+            for _, selection in ipairs(selections) do
+                selection.Color3 = rainbowColor
+                selection.Visible = true  -- 토글이 켜져 있을 때만 보이게 설정
+            end
+        else
+            -- 토글이 꺼지면 SelectionBox를 숨김
+            for _, selection in ipairs(selections) do
+                selection.Visible = false
+            end
+        end
+    end)
+end
+
+
+
+-- Rayfield UI 생성
+local Window = Rayfield:CreateWindow({
+    Name = "better",
+    LoadingTitle = "loading stupid",
+    LoadingSubtitle = "by dungi2",
+    ConfigurationSaving = {
+        Enabled = true
+    },
+    KeySystem = false
+})
+
+local MainTab = Window:CreateTab("delete limb", 4483362458)
+local anti gucciTab = Window:CreateTab("anti gucci", 4483362458)
+local lineTab = Window:CreateTab("Line", 448362458)
+
+local Bind = MainTab:CreateKeybind({
+    Name = "delete limbs",
+    CurrentKeybind = "G",
+    HoldToInteract = false,
+    Flag = "RagdollKeybind",
+    Callback = function()
+        getgenv().OnOff = not getgenv().OnOff
+        print(getgenv().OnOff and "기능 활성화됨" or "기능 비활성화됨")
+        
+        if getgenv().OnOff then
+            spawn(maintainRagdoll)
+            setRagdoll(true, function()
+                moveLimbs(function()
+                    teleportToLeftArm(function()
+                        wait(0.2)
+                        setRagdoll(false)
+                    end)
+                end)
+            end)
+        else
+            setRagdoll(false)
+        end
+    end
+})
+
+local Bind = MainTab:CreateKeybind({
+    Name = "delete limbs targetPlayer",
+    CurrentKeybind = "N",
+    HoldToInteract = false,
+    Flag = "NetworkRagdollKeybind",
+    Callback = function()
+        local targetPlayer = getTargetPlayer()
+        if targetPlayer then
+            changeNetworkOwner(targetPlayer)
+            print("대상 플레이어: " .. targetPlayer.Name)
+            
+            toggleRagdoll(targetPlayer, true, function()
+                shiftLimbs(targetPlayer, function()
+                    moveToLeftArm(targetPlayer, function()
+                        wait(0.2)
+                        toggleRagdoll(targetPlayer, false)
+                    end)
+                end)
+            end)
+        else
+            print("대상 플레이어를 찾을 수 없음")
+        end
+    end
+})
+
+local Toggle = gucciTab:CreateToggle({
+    Name = "AutoGucci",
+    CurrentValue = false,
+    Flag = "autoGucciToggleFlag",
+    Callback = function(Value)
+        autoGucciT = Value
+        if autoGucciT then
+            spawnBlobmanF()
+            task.wait(1.1)
+            if not sitJumpT then
+                coroutine.wrap(sitJumpF)()
+                sitJumpT = true
+            end
+            coroutine.wrap(ragdollLoopF)()
+        else
+            sitJumpT = false
+        end
+    end
+})
+
+local Bind = gucciTab:CreateKeybind({
+    Name = "Toggle AutoGucci",
+    CurrentKeybind = "V",
+    HoldToInteract = false,
+    Flag = "autoGucciKeybindFlag",
+    Callback = function()
+        Toggle:Set(not autoGucciT)
+    end
+})
+
+
+local Toggle = lineTab:CreateToggle({
+    Name = "Enable Rainbow Effect",
+    CurrentValue = rainbowEnabled,
+    Flag = "RainbowEffectToggle",
+    Callback = function(value)
+        rainbowEnabled = value
+        if rainbowEnabled and LocalPlayer.Character then
+            applyRainbowEffectToCharacter(LocalPlayer.Character)
+        end
+    end
+})
+
+if LocalPlayer.Character then
+    applyRainbowEffectToCharacter(LocalPlayer.Character)
+end
+
+LocalPlayer.CharacterAdded:Connect(applyRainbowEffectToCharacter)
