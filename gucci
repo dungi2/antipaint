@@ -1,0 +1,61 @@
+-- 플레이어와 서비스 정의
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local userInputService = game:GetService("UserInputService")
+
+-- 키 입력 감지 함수
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- 키가 "J"이고, 게임에서 처리되지 않은 경우에만 실행
+    if input.KeyCode == Enum.KeyCode.J and not gameProcessed then
+        -- 마우스로 보고 있는 대상 찾기
+        local mouse = player:GetMouse()
+        local target = mouse.Target
+        if target then
+            -- 대상의 부모를 통해 플레이어 폴더 찾기
+            local model = target.Parent
+            if model and model:IsA("Model") then
+                local playerName = model.Name
+                local blobFolder = workspace:FindFirstChild(playerName .. "SpawnedInToys")
+                
+                -- workspace에서 폴더를 찾지 못했다면 ♥backpacks♥에서 찾기
+                if not blobFolder then
+                    blobFolder = workspace["♥backpacks♥"]:FindFirstChild(playerName .. "SpawnedInToys")
+                end
+                
+                -- ♥backpacks♥에서도 찾지 못했다면 workspace.PlotItems의 각 Plot 폴더에서 CreatureBlobman 찾기
+                local creatureBlob
+                if not blobFolder then
+                    for _, plotFolder in pairs(workspace.PlotItems:GetChildren()) do
+                        creatureBlob = plotFolder:FindFirstChild("CreatureBlobman")
+                        if creatureBlob then
+                            break
+                        end
+                    end
+                else
+                    creatureBlob = blobFolder:FindFirstChild("CreatureBlobman")
+                end
+                
+                if creatureBlob then
+                    local vehicleSeat = creatureBlob:FindFirstChild("VehicleSeat")
+                    if vehicleSeat then
+                        -- 좌석 위치로 이동
+                        character:MoveTo(vehicleSeat.Position + Vector3.new(0, 3, 0))
+                        wait(0.1)
+
+                        -- 좌석에 앉기
+                        vehicleSeat:Sit(character.Humanoid)
+                        print("Teleported to " .. playerName .. "'s Blob!")
+                    else
+                        warn("VehicleSeat not found in CreatureBlobman.")
+                    end
+                else
+                    warn("CreatureBlobman not found in workspace, ♥backpacks♥, or PlotItems.")
+                end
+            else
+                warn("Target is not a valid model.")
+            end
+        else
+            warn("No target found.")
+        end
+    end
+end)
